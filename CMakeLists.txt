@@ -14,16 +14,19 @@ message("CMAKE_SYSTEM_PROCESSOR = ${CMAKE_SYSTEM_PROCESSOR}")
 # 添加头文件路径
 set(INC_DIR
 	include
-	3rdparty/hc_net_sdk/${CMAKE_SYSTEM_NAME}/inc
+	3rdparty/${CMAKE_SYSTEM_NAME}/hc_net_sdk/inc
+	3rdparty/${CMAKE_SYSTEM_NAME}/spdlog/inc
 )
 # 添加库文件路径
 set(LINK_DIR
-	3rdparty/hc_net_sdk/${CMAKE_SYSTEM_NAME}/lib
-	3rdparty/hc_net_sdk/${CMAKE_SYSTEM_NAME}/lib/HCNetSDKCom
+	3rdparty/${CMAKE_SYSTEM_NAME}/hc_net_sdk/lib
+	3rdparty/${CMAKE_SYSTEM_NAME}/hc_net_sdk/lib/HCNetSDKCom
+	3rdparty/${CMAKE_SYSTEM_NAME}/spdlog/lib
 )
 
 # 添加源文件
 set(SOURCE_FILES
+	src/hc_net.cpp
 	src/main.cpp
 )
 
@@ -35,10 +38,14 @@ LINK_DIRECTORIES(${LINK_DIR})
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 	add_library(hcnetsdk SHARED IMPORTED)
-	set_target_properties(hcnetsdk PROPERTIES IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/3rdparty/hc_net_sdk/${CMAKE_SYSTEM_NAME}/lib/libhcnetsdk.so)
+	set_target_properties(hcnetsdk PROPERTIES IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/3rdparty/${CMAKE_SYSTEM_NAME}/hc_net_sdk/lib/libhcnetsdk.so)
+	add_library(spdlog STATIC IMPORTED)
+	set_target_properties(spdlog PROPERTIES IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/3rdparty/${CMAKE_SYSTEM_NAME}/spdlog/lib/libspdlog.a)
 else()
 	add_library(hcnetsdk STATIC IMPORTED)
-	set_target_properties(hcnetsdk PROPERTIES IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/3rdparty/hc_net_sdk/${CMAKE_SYSTEM_NAME}/lib/HCNetSDK.lib)
+	set_target_properties(hcnetsdk PROPERTIES IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/3rdparty/${CMAKE_SYSTEM_NAME}/hc_net_sdk/lib/HCNetSDK.lib)
+	add_library(spdlog STATIC IMPORTED)
+	set_target_properties(spdlog PROPERTIES IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/3rdparty/${CMAKE_SYSTEM_NAME}/spdlog/lib/libspdlog.a)
 endif()
 
 # 将源代码添加到此项目的可执行文件。
@@ -46,6 +53,7 @@ add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 
 target_link_libraries(${PROJECT_NAME}
 	hcnetsdk
+	spdlog
 )
 
 # TODO: 如有需要，请添加测试并安装目标。
