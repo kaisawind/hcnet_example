@@ -8,12 +8,13 @@ public:
 	HCNet();
 	~HCNet();
 	void Login();
-	void LoginResult(LONG lUserID, DWORD dwResult, LPNET_DVR_DEVICEINFO_V30 lpDeviceInfo);
 
 private:
 	DWORD Init();
+	void DeviceInfo();
+    void DeviceInfoDVRType(BYTE byDVRType);
 
 private:
-	LONG lUserID_;
-	LPNET_DVR_DEVICEINFO_V30 lpDeviceInfo_;
+    LONG lUserID_{-1};
+	LPNET_DVR_DEVICEINFO_V40 lpDeviceInfo_{nullptr};
 };
