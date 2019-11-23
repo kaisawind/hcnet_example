@@ -1,9 +1,61 @@
-﻿#include "hc_net.h"
+#include "hc_net.h"
+
+void CALLBACK fRealDataCallBack_V30(LONG lPlayHandle, DWORD dwDataType, BYTE* pBuffer, DWORD dwBufSize, void* pUser) {
+    auto* self = (HCNet*)pUser;
+
+    switch (dwDataType)
+    {
+    case NET_DVR_SYSHEAD:
+        break;
+    case NET_DVR_STREAMDATA:
+        break;
+    case NET_DVR_AUDIOSTREAMDATA:
+        break;
+    case NET_DVR_PRIVATE_DATA:
+        break;
+    default:
+        break;
+    }
+}
+
+void CALLBACK fExceptionCallBack(DWORD dwType, LONG lUserID, LONG lHandle, void* pUser) {
+    auto* self = (HCNet*)pUser;
+
+    switch (dwType) {
+    case EXCEPTION_RECONNECT:
+        spdlog::error("预览时重连 {} {}", lUserID, dwType);
+        break;
+    case PREVIEW_RECONNECTSUCCESS:
+        spdlog::info("预览时重连成功 {} {}", lUserID, dwType);
+        break;
+    case EXCEPTION_PREVIEW:
+        spdlog::error("网络预览异常 {} {}", lUserID, dwType);
+        break;
+    case EXCEPTION_PLAYBACK:
+        spdlog::error("回放异常 {} {}", lUserID, dwType);
+        break;
+    case NETWORK_FLOWTEST_EXCEPTION:
+        spdlog::error("网络流量检测异常 {} {}", lUserID, dwType);
+        break;
+    case EXCEPTION_SERIAL:
+        spdlog::error("透明通道异常 {} {}", lUserID, dwType);
+        break;
+    default:
+        spdlog::error("fExceptionCallBack {} {}", lUserID, dwType);
+        break;
+    }
+}
 
 HCNet::HCNet() {
     this->lUserID_ = -1;
     this->lpDeviceInfo_ = new NET_DVR_DEVICEINFO_V40;
     memset(this->lpDeviceInfo_, 0, sizeof(NET_DVR_DEVICEINFO_V40));
+
+    this->lpDeviceCfg_ = new NET_DVR_DEVICECFG_V40;
+    memset(this->lpDeviceCfg_, 0, sizeof(NET_DVR_DEVICECFG_V40));
+
+    this->lpIPParaCfg_ = new NET_DVR_IPPARACFG_V40;
+    memset(this->lpIPParaCfg_, 0, sizeof(NET_DVR_IPPARACFG_V40));
 
     // NVR init
     this->Init();
@@ -11,6 +63,20 @@ HCNet::HCNet() {
 
 HCNet::~HCNet() {
     spdlog::info("Destroy HCNet");
+
+    if (this->lRealHandle_ != -1) {
+        // 停止预览。
+        BOOL ret = NET_DVR_StopRealPlay(this->lRealHandle_);
+        if (!ret) {
+            // 返回最后操作的错误码。
+            DWORD lError = NET_DVR_GetLastError();
+            LONG lErrorNo = LONG(lError);
+            // 返回最后操作的错误码信息。
+            spdlog::error("NET_DVR_StopRealPlay: {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
+            // return;
+        }
+    }
+
     if (this->lUserID_ != -1) {
         // 用户注销。
         BOOL ret = NET_DVR_Logout(this->lUserID_);
@@ -33,7 +99,7 @@ HCNet::~HCNet() {
         spdlog::error("NET_DVR_Cleanup: {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
         return;
     }
-
+    delete this->lpDeviceCfg_;
     delete this->lpDeviceInfo_;
     spdlog::info("HC Net DVR Destroy");
 }
@@ -107,7 +173,7 @@ DWORD HCNet::Init() {
     return NET_DVR_NOERROR;
 }
 
-void HCNet::Login() {
+DWORD HCNet::Login() {
     NET_DVR_USER_LOGIN_INFO loginInfo = {
             "123.185.223.20",            // sDeviceAddress 设备地址，IP 或者普通域名
             1,                           // byUseTransport 是否启用能力集透传：0- 不启用透传，默认；1- 启用透传
@@ -131,25 +197,121 @@ void HCNet::Login() {
         LONG lErrorNo = LONG(lError);
         // 返回最后操作的错误码信息。
         spdlog::error("NET_DVR_Login_V40: {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
-        return;
+        return lError;
     }
     this->lUserID_ = lUserID;
-    this->DeviceInfo();
-	spdlog::info("NET_DVR_Login_V40 OK {}", lUserID);
+    this->GetDeviceInfo();
+
+    spdlog::info("NET_DVR_Login_V40 OK {}", lUserID);
+
+    BOOL ret = NET_DVR_SetExceptionCallBack_V30(0, nullptr, fExceptionCallBack, this);
+    if (!ret) {
+        // 返回最后操作的错误码。
+        DWORD lError = NET_DVR_GetLastError();
+        LONG lErrorNo = LONG(lError);
+        // 返回最后操作的错误码信息。
+        spdlog::error("NET_DVR_SetExceptionCallBack_V30: {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
+        return lError;
+    }
+
+    this->GetDeviceConfig();
+    this->GetIPParaConfig();
+
+    return NET_DVR_NOERROR;
 }
 
-void HCNet::DeviceInfo() {
+DWORD HCNet::GetDeviceConfig() {
+    // 获取设备的配置信息。
+    DWORD dwReturned = 0;
+    BOOL ret = NET_DVR_GetDVRConfig(this->lUserID_, NET_DVR_GET_DEVICECFG_V40, 0xFFFFFFFF, this->lpDeviceCfg_, sizeof(NET_DVR_DEVICECFG_V40), &dwReturned);
+    if (!ret) {
+        // 返回最后操作的错误码。
+        DWORD lError = NET_DVR_GetLastError();
+        LONG lErrorNo = LONG(lError);
+        // 返回最后操作的错误码信息。
+        spdlog::error("NET_DVR_GetDVRConfig: NET_DVR_GET_DEVICECFG_V40 {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
+        return lError;
+    }
+    LPNET_DVR_DEVICECFG_V40 lpDeviceCfg = this->lpDeviceCfg_;
+
+    spdlog::info("设备名称       {}", lpDeviceCfg->sDVRName);
+    spdlog::info("设备ID号       {}", lpDeviceCfg->dwDVRID);
+    spdlog::info("设备名称        {}", lpDeviceCfg->sSerialNumber);
+    spdlog::info("设备232串口个数  {}", lpDeviceCfg->byRS232Num);
+    spdlog::info("设备485串口个数  {}", lpDeviceCfg->byRS485Num);
+    spdlog::info("网络口个数       {}", lpDeviceCfg->byNetworkPortNum);
+    spdlog::info("硬盘控制器个数    {}", lpDeviceCfg->byDiskCtrlNum);
+    spdlog::info("硬盘个数          {}", lpDeviceCfg->byDiskNum);
+    this->DVRType(lpDeviceCfg->byDVRType);
+    spdlog::info("设备模拟通道个数    {}", lpDeviceCfg->byChanNum);
+    spdlog::info("模拟通道的起始通道号 {}", lpDeviceCfg->byStartChan);
+
+    spdlog::info("NET_DVR_GetDVRConfig NET_DVR_GET_DEVICECFG_V40 OK {}", dwReturned);
+    return NET_DVR_NOERROR;
+}
+
+DWORD HCNet::GetIPParaConfig() {
+    // 获取IP接入配置参数
+    DWORD dwReturned = 0;
+    BOOL ret = NET_DVR_GetDVRConfig(this->lUserID_, NET_DVR_GET_IPPARACFG_V40, 0, this->lpIPParaCfg_, sizeof(NET_DVR_IPPARACFG_V40), &dwReturned);
+    if (!ret) {
+        // 返回最后操作的错误码。
+        DWORD lError = NET_DVR_GetLastError();
+        LONG lErrorNo = LONG(lError);
+        // 返回最后操作的错误码信息。
+        spdlog::error("NET_DVR_GetDVRConfig: NET_DVR_GET_IPPARACFG_V40 {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
+        return lError;
+    }
+    LPNET_DVR_IPPARACFG_V40 lpIPParaCfg = this->lpIPParaCfg_;
+    spdlog::info("设备支持的总组数 {}", lpIPParaCfg->dwGroupNum);
+    spdlog::info("最大模拟通道个数 {}", lpIPParaCfg->dwAChanNum);
+    spdlog::info("数字通道个数    {}", lpIPParaCfg->dwDChanNum);
+    spdlog::info("起始数字通道    {}", lpIPParaCfg->dwStartDChan);
+    // IP设备
+    for (auto i : lpIPParaCfg->struIPDevInfo) {
+        LPNET_DVR_IPDEVINFO_V31 lpIPDevInfo = &i;
+        if (!lpIPDevInfo->byEnable) {
+            continue;
+        }
+        spdlog::info("IP设备是否有效 {}", lpIPDevInfo->byEnable);
+        switch (lpIPDevInfo->byProType) {
+            case 0:
+                spdlog::info("协议类型 {}-{}", lpIPDevInfo->byProType, "私有协议");
+                break;
+            case 1:
+                spdlog::info("协议类型 {}-{}", lpIPDevInfo->byProType, "松下协议");
+                break;
+            case 2:
+                spdlog::info("协议类型 {}-{}", lpIPDevInfo->byProType, "索尼");
+                break;
+            default:
+                spdlog::info("协议类型 {}", lpIPDevInfo->byProType);
+                break;
+        }
+        spdlog::info("用户名 {}", lpIPDevInfo->sUserName);
+        spdlog::info("密码 {}", lpIPDevInfo->sPassword);
+        spdlog::info("设备域名 {}", lpIPDevInfo->byDomain);
+        spdlog::info("IPV4地址 {}", lpIPDevInfo->struIP.sIpV4);
+        spdlog::info("IPV6地址 {}", lpIPDevInfo->struIP.byIPv6);
+        spdlog::info("端口号 {}", lpIPDevInfo->wDVRPort);
+        spdlog::info("设备ID {}", lpIPDevInfo->szDeviceID);
+    }
+    spdlog::info("NET_DVR_GetDVRConfig NET_DVR_GET_IPPARACFG_V40 OK {}", dwReturned);
+    return NET_DVR_NOERROR;
+}
+
+void HCNet::GetDeviceInfo() {
     LPNET_DVR_DEVICEINFO_V40 lpDeviceInfo = this->lpDeviceInfo_;
     NET_DVR_DEVICEINFO_V30 struDeviceV30 = lpDeviceInfo->struDeviceV30;
     spdlog::info("序列号                               {}", struDeviceV30.sSerialNumber);
     spdlog::info("报警输入个数                         {}", struDeviceV30.byAlarmInPortNum);
     spdlog::info("报警输出个数                         {}", struDeviceV30.byAlarmOutPortNum);
     spdlog::info("硬盘个数                             {}", struDeviceV30.byDiskNum);
-    this->DeviceInfoDVRType(struDeviceV30.byDVRType);
+    this->DVRType(struDeviceV30.byDVRType);
     spdlog::info("模拟通道个数                         {}", struDeviceV30.byChanNum);
     spdlog::info("起始通道号                           {}", struDeviceV30.byStartChan);
     spdlog::info("语音通道数                           {}", struDeviceV30.byAudioChanNum);
-    spdlog::info("最大数字通道个数,低位                {}", struDeviceV30.byIPChanNum);
+    spdlog::info("最大数字通道个数,低位                 {}", struDeviceV30.byIPChanNum);
     spdlog::info("零通道编码个数                       {}", struDeviceV30.byZeroChanNum);
 
     // 主码流传输协议类型
@@ -193,7 +355,7 @@ void HCNet::DeviceInfo() {
     spdlog::info("是否支持rtp over rtsp                {:x}", (struDeviceV30.bySupport & 0x80)>>7);
 }
 
-void HCNet::DeviceInfoDVRType(BYTE byDVRType) {
+void HCNet::DVRType(BYTE byDVRType) {
     switch (byDVRType) {
     case DVR:
         spdlog::info("设备类型                             {}:{}", byDVRType, "DVR");
@@ -211,4 +373,20 @@ void HCNet::DeviceInfoDVRType(BYTE byDVRType) {
         spdlog::info("设备类型                             {}:{}", byDVRType, "unknown");
         break;
     }
+}
+
+DWORD HCNet::RealPlay() {
+    // 实时预览（支持多码流）。
+    NET_DVR_PREVIEWINFO struPreviewInfo = { 0 };
+    this->lRealHandle_ = NET_DVR_RealPlay_V40(this->lUserID_, &struPreviewInfo, nullptr, nullptr);
+    if (this->lRealHandle_ == -1) {
+        // 返回最后操作的错误码。
+        DWORD lError = NET_DVR_GetLastError();
+        LONG lErrorNo = LONG(lError);
+        // 返回最后操作的错误码信息。
+        spdlog::error("NET_DVR_RealPlay_V40: {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
+        return lError;
+    }
+
+    return NET_DVR_NOERROR;
 }

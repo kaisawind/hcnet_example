@@ -7,14 +7,20 @@ class HCNet {
 public:
 	HCNet();
 	~HCNet();
-	void Login();
+    DWORD Login();
+    DWORD RealPlay();
 
 private:
 	DWORD Init();
-	void DeviceInfo();
-    void DeviceInfoDVRType(BYTE byDVRType);
+	void GetDeviceInfo();
+    DWORD GetDeviceConfig();
+    DWORD GetIPParaConfig();
+    void DVRType(BYTE byDVRType);
 
 private:
-    LONG lUserID_{-1};
-	LPNET_DVR_DEVICEINFO_V40 lpDeviceInfo_{nullptr};
+    LONG lUserID_{ -1 };
+    LONG lRealHandle_{ -1 };
+	LPNET_DVR_DEVICEINFO_V40 lpDeviceInfo_{ nullptr };
+    LPNET_DVR_DEVICECFG_V40 lpDeviceCfg_{ nullptr };
+    LPNET_DVR_IPPARACFG_V40 lpIPParaCfg_{ nullptr };
 };
