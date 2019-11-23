@@ -5,6 +5,11 @@
 
 class HCNet {
 public:
+    enum HCNetErrors {
+        kOK = 0,
+        kXmlError = 1,
+    };
+public:
 	HCNet();
 	~HCNet();
     DWORD Login();
@@ -15,6 +20,8 @@ private:
 	void GetDeviceInfo();
     DWORD GetDeviceConfig();
     DWORD GetIPParaConfig();
+    DWORD GetPtzAbility();
+    DWORD ParsePtzAbility(char* pOutBuf);
     void DVRType(BYTE byDVRType);
 
 private:

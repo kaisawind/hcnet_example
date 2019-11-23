@@ -1,48 +1,57 @@
 #include "hc_net.h"
 
-void CALLBACK fRealDataCallBack_V30(LONG lPlayHandle, DWORD dwDataType, BYTE* pBuffer, DWORD dwBufSize, void* pUser) {
-    auto* self = (HCNet*)pUser;
+// kPtzAbility 获取设备PTZ能力时pInBuf参数描述
+const char *kPtzAbility = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                          "<!--req, 获取设备PTZ能力时pInBuf参数描述-->"
+                          "<!--req, PTZAbility：花样扫描、云台守望等PTZ能力-->"
+                          "<PTZAbility version= \"2.0\">"
+                          "  <channelNO>"
+                          "    %d<!--req,通道号-->"
+                          "  </channelNO>"
+                          "</PTZAbility>";
 
-    switch (dwDataType)
-    {
-    case NET_DVR_SYSHEAD:
-        break;
-    case NET_DVR_STREAMDATA:
-        break;
-    case NET_DVR_AUDIOSTREAMDATA:
-        break;
-    case NET_DVR_PRIVATE_DATA:
-        break;
-    default:
-        break;
+void CALLBACK fRealDataCallBack_V30(LONG lPlayHandle, DWORD dwDataType, BYTE *pBuffer, DWORD dwBufSize, void *pUser) {
+    auto *self = (HCNet *) pUser;
+
+    switch (dwDataType) {
+        case NET_DVR_SYSHEAD:
+            break;
+        case NET_DVR_STREAMDATA:
+            break;
+        case NET_DVR_AUDIOSTREAMDATA:
+            break;
+        case NET_DVR_PRIVATE_DATA:
+            break;
+        default:
+            break;
     }
 }
 
-void CALLBACK fExceptionCallBack(DWORD dwType, LONG lUserID, LONG lHandle, void* pUser) {
-    auto* self = (HCNet*)pUser;
+void CALLBACK fExceptionCallBack(DWORD dwType, LONG lUserID, LONG lHandle, void *pUser) {
+    auto *self = (HCNet *) pUser;
 
     switch (dwType) {
-    case EXCEPTION_RECONNECT:
-        spdlog::error("预览时重连 {} {}", lUserID, dwType);
-        break;
-    case PREVIEW_RECONNECTSUCCESS:
-        spdlog::info("预览时重连成功 {} {}", lUserID, dwType);
-        break;
-    case EXCEPTION_PREVIEW:
-        spdlog::error("网络预览异常 {} {}", lUserID, dwType);
-        break;
-    case EXCEPTION_PLAYBACK:
-        spdlog::error("回放异常 {} {}", lUserID, dwType);
-        break;
-    case NETWORK_FLOWTEST_EXCEPTION:
-        spdlog::error("网络流量检测异常 {} {}", lUserID, dwType);
-        break;
-    case EXCEPTION_SERIAL:
-        spdlog::error("透明通道异常 {} {}", lUserID, dwType);
-        break;
-    default:
-        spdlog::error("fExceptionCallBack {} {}", lUserID, dwType);
-        break;
+        case EXCEPTION_RECONNECT:
+            spdlog::error("预览时重连 {} {}", lUserID, dwType);
+            break;
+        case PREVIEW_RECONNECTSUCCESS:
+            spdlog::info("预览时重连成功 {} {}", lUserID, dwType);
+            break;
+        case EXCEPTION_PREVIEW:
+            spdlog::error("网络预览异常 {} {}", lUserID, dwType);
+            break;
+        case EXCEPTION_PLAYBACK:
+            spdlog::error("回放异常 {} {}", lUserID, dwType);
+            break;
+        case NETWORK_FLOWTEST_EXCEPTION:
+            spdlog::error("网络流量检测异常 {} {}", lUserID, dwType);
+            break;
+        case EXCEPTION_SERIAL:
+            spdlog::error("透明通道异常 {} {}", lUserID, dwType);
+            break;
+        default:
+            spdlog::error("fExceptionCallBack {} {}", lUserID, dwType);
+            break;
     }
 }
 
@@ -178,17 +187,17 @@ DWORD HCNet::Login() {
             "123.185.223.20",            // sDeviceAddress 设备地址，IP 或者普通域名
             1,                           // byUseTransport 是否启用能力集透传：0- 不启用透传，默认；1- 启用透传
             8000,                        // wPort		  设备端口号，例如：8000
-            "admin",					 // sUserName	  登录用户名，例如：admin
+            "admin",                     // sUserName	  登录用户名，例如：admin
             "1qaz2wsx",                  // sPassword	  登录密码，例如：12345
             nullptr,                     // cbLoginResult  登录状态回调函数，bUseAsynLogin 为1时有效
             nullptr,                     // pUser		  用户数据
-            FALSE,						 // bUseAsynLogin  是否异步登录：0- 否，1- 是
-            0,							 // byProxyType    代理服务器类型：0- 不使用代理，1- 使用标准代理，2- 使用EHome代理
-            0,							 // byUseUTCTime   是否使用UTC时间：0- 不进行转换，默认；1- 输入输出UTC时间，SDK进行与设备时区的转换；2- 输入输出平台本地时间，SDK进行与设备时区的转换
-            0,							 // byLoginMode    登录模式(不同模式具体含义详见“Remarks”说明)：0- SDK私有协议，1- ISAPI协议，2- 自适应（设备支持协议类型未知时使用，一般不建议）
-            0,							 // byHttps        ISAPI协议登录时是否启用HTTPS(byLoginMode为1时有效)：0- 不启用，1- 启用，2- 自适应（设备支持协议类型未知时使用，一般不建议）
-            0,							 // iProxyID       代理服务器序号，添加代理服务器信息时相对应的服务器数组下表值
-            0,							 // byVerifyMode
+            FALSE,                         // bUseAsynLogin  是否异步登录：0- 否，1- 是
+            0,                             // byProxyType    代理服务器类型：0- 不使用代理，1- 使用标准代理，2- 使用EHome代理
+            0,                             // byUseUTCTime   是否使用UTC时间：0- 不进行转换，默认；1- 输入输出UTC时间，SDK进行与设备时区的转换；2- 输入输出平台本地时间，SDK进行与设备时区的转换
+            0,                             // byLoginMode    登录模式(不同模式具体含义详见“Remarks”说明)：0- SDK私有协议，1- ISAPI协议，2- 自适应（设备支持协议类型未知时使用，一般不建议）
+            0,                             // byHttps        ISAPI协议登录时是否启用HTTPS(byLoginMode为1时有效)：0- 不启用，1- 启用，2- 自适应（设备支持协议类型未知时使用，一般不建议）
+            0,                             // iProxyID       代理服务器序号，添加代理服务器信息时相对应的服务器数组下表值
+            0,                             // byVerifyMode
     };
     LONG lUserID = NET_DVR_Login_V40(&loginInfo, this->lpDeviceInfo_);
     if (lUserID == -1) {
@@ -214,16 +223,75 @@ DWORD HCNet::Login() {
         return lError;
     }
 
-    this->GetDeviceConfig();
-    this->GetIPParaConfig();
+    DWORD error = this->GetDeviceConfig();
+    if (error) {
+        spdlog::error("Get Device Config error {}", error);
+        return error;
+    }
+    error = this->GetIPParaConfig();
+    if (error) {
+        spdlog::error("Get IP Para error {}", error);
+        return error;
+    }
 
-    return NET_DVR_NOERROR;
+    error = this->GetPtzAbility();
+    if (error) {
+        spdlog::error("Get Ptz Ability error {}", error);
+        return error;
+    }
+    return kOK;
+}
+
+DWORD HCNet::ParsePtzAbility(char *pOutBuf) {
+    tinyxml2::XMLDocument doc;
+    tinyxml2::XMLError error = doc.Parse(pOutBuf);
+    if (!error) {
+        spdlog::error("Ptz Ability xml parser error", tinyxml2::XMLDocument::ErrorIDToName(error));
+        return kXmlError;
+    }
+    const char *ability = doc.RootElement()->Value();
+    if (strncmp(ability, "PTZAbility", sizeof("PTZAbility")) != 0) {
+        spdlog::warn("Not PTZ Ability");
+        return kXmlError;
+    }
+    const char *controlTypeOpt = doc.FirstChildElement("PTZAbility")->FirstChildElement(
+            "PTZControl")->FirstChildElement("controlType")->Attribute("opt");
+    std::string sOpt(controlTypeOpt);
+    // sOpt.find("");
+    spdlog::info("control type opt {}", sOpt);
+    return kOK;
+}
+
+DWORD HCNet::GetPtzAbility() {
+    for (DWORD index = 0; index < this->lpIPParaCfg_->dwDChanNum; index++) {
+        DWORD dwChannelIndex = index + this->lpIPParaCfg_->dwStartDChan;
+        char pInBuf[512] = "";
+        char pOutBuf[1024 * 1024] = "";
+        sprintf(pInBuf, kPtzAbility, dwChannelIndex);
+        BOOL ret = NET_DVR_GetDeviceAbility(this->lUserID_, DEVICE_ABILITY_INFO, pInBuf, sizeof(pInBuf), pOutBuf,
+                                            sizeof(pOutBuf));
+        if (!ret) {
+            // 返回最后操作的错误码。
+            DWORD lError = NET_DVR_GetLastError();
+            LONG lErrorNo = LONG(lError);
+            // 返回最后操作的错误码信息。
+            spdlog::error("NET_DVR_GetDeviceAbility DEVICE_ABILITY_INFO: {} {}", lError,
+                          NET_DVR_GetErrorMsg(&lErrorNo));
+            continue;
+        }
+        DWORD error = this->ParsePtzAbility(pOutBuf);
+        if (!error) {
+            continue;
+        }
+    }
+    return kOK;
 }
 
 DWORD HCNet::GetDeviceConfig() {
     // 获取设备的配置信息。
     DWORD dwReturned = 0;
-    BOOL ret = NET_DVR_GetDVRConfig(this->lUserID_, NET_DVR_GET_DEVICECFG_V40, 0xFFFFFFFF, this->lpDeviceCfg_, sizeof(NET_DVR_DEVICECFG_V40), &dwReturned);
+    BOOL ret = NET_DVR_GetDVRConfig(this->lUserID_, NET_DVR_GET_DEVICECFG_V40, 0xFFFFFFFF, this->lpDeviceCfg_,
+                                    sizeof(NET_DVR_DEVICECFG_V40), &dwReturned);
     if (!ret) {
         // 返回最后操作的错误码。
         DWORD lError = NET_DVR_GetLastError();
@@ -247,13 +315,14 @@ DWORD HCNet::GetDeviceConfig() {
     spdlog::info("模拟通道的起始通道号 {}", lpDeviceCfg->byStartChan);
 
     spdlog::info("NET_DVR_GetDVRConfig NET_DVR_GET_DEVICECFG_V40 OK {}", dwReturned);
-    return NET_DVR_NOERROR;
+    return kOK;
 }
 
 DWORD HCNet::GetIPParaConfig() {
     // 获取IP接入配置参数
     DWORD dwReturned = 0;
-    BOOL ret = NET_DVR_GetDVRConfig(this->lUserID_, NET_DVR_GET_IPPARACFG_V40, 0, this->lpIPParaCfg_, sizeof(NET_DVR_IPPARACFG_V40), &dwReturned);
+    BOOL ret = NET_DVR_GetDVRConfig(this->lUserID_, NET_DVR_GET_IPPARACFG_V40, 0, this->lpIPParaCfg_,
+                                    sizeof(NET_DVR_IPPARACFG_V40), &dwReturned);
     if (!ret) {
         // 返回最后操作的错误码。
         DWORD lError = NET_DVR_GetLastError();
@@ -273,7 +342,7 @@ DWORD HCNet::GetIPParaConfig() {
         if (!lpIPDevInfo->byEnable) {
             continue;
         }
-        spdlog::info("IP设备是否有效 {}", lpIPDevInfo->byEnable);
+        spdlog::info("---------------------------------");
         switch (lpIPDevInfo->byProType) {
             case 0:
                 spdlog::info("协议类型 {}-{}", lpIPDevInfo->byProType, "私有协议");
@@ -296,8 +365,9 @@ DWORD HCNet::GetIPParaConfig() {
         spdlog::info("端口号 {}", lpIPDevInfo->wDVRPort);
         spdlog::info("设备ID {}", lpIPDevInfo->szDeviceID);
     }
+    spdlog::info("---------------------------------");
     spdlog::info("NET_DVR_GetDVRConfig NET_DVR_GET_IPPARACFG_V40 OK {}", dwReturned);
-    return NET_DVR_NOERROR;
+    return kOK;
 }
 
 void HCNet::GetDeviceInfo() {
@@ -344,40 +414,40 @@ void HCNet::GetDeviceInfo() {
             spdlog::info("子码流传输协议类型                   {}-{}", struDeviceV30.byMainProto, "unknown");
             break;
     }
-	// 能力，位与结果为0表示不支持，1表示支持，
+    // 能力，位与结果为0表示不支持，1表示支持，
     spdlog::info("是否支持智能搜索                     {:x}", struDeviceV30.bySupport & 0x1);
-    spdlog::info("是否支持备份                         {:x}", (struDeviceV30.bySupport & 0x2)>>1);
-    spdlog::info("是否支持压缩参数能力获取             {:x}", (struDeviceV30.bySupport & 0x3)>>2);
-    spdlog::info("是否支持多网卡                       {:x}", (struDeviceV30.bySupport & 0x4)>>3);
-    spdlog::info("是否支持远程SADP                     {:x}", (struDeviceV30.bySupport & 0x10)>>4);
-    spdlog::info("是否支持Raid卡功能                   {:x}", (struDeviceV30.bySupport & 0x20)>>5);
-    spdlog::info("是否支持IPSAN 目录查找               {:x}", (struDeviceV30.bySupport & 0x40)>>6);
-    spdlog::info("是否支持rtp over rtsp                {:x}", (struDeviceV30.bySupport & 0x80)>>7);
+    spdlog::info("是否支持备份                         {:x}", (struDeviceV30.bySupport & 0x2) >> 1);
+    spdlog::info("是否支持压缩参数能力获取             {:x}", (struDeviceV30.bySupport & 0x3) >> 2);
+    spdlog::info("是否支持多网卡                       {:x}", (struDeviceV30.bySupport & 0x4) >> 3);
+    spdlog::info("是否支持远程SADP                     {:x}", (struDeviceV30.bySupport & 0x10) >> 4);
+    spdlog::info("是否支持Raid卡功能                   {:x}", (struDeviceV30.bySupport & 0x20) >> 5);
+    spdlog::info("是否支持IPSAN 目录查找               {:x}", (struDeviceV30.bySupport & 0x40) >> 6);
+    spdlog::info("是否支持rtp over rtsp                {:x}", (struDeviceV30.bySupport & 0x80) >> 7);
 }
 
 void HCNet::DVRType(BYTE byDVRType) {
     switch (byDVRType) {
-    case DVR:
-        spdlog::info("设备类型                             {}:{}", byDVRType, "DVR");
-        break;
-    case ATMDVR:
-        spdlog::info("设备类型                             {}:{}", byDVRType, "ATM DVR");
-        break;
-    case DVS:
-        spdlog::info("设备类型                             {}:{}", byDVRType, "DVS");
-        break;
-    case DS90XX_HF_S:
-        spdlog::info("设备类型                             {}:{}", byDVRType, "DS90XX_HF_S");
-        break;
-    default:
-        spdlog::info("设备类型                             {}:{}", byDVRType, "unknown");
-        break;
+        case DVR:
+            spdlog::info("设备类型                             {}:{}", byDVRType, "DVR");
+            break;
+        case ATMDVR:
+            spdlog::info("设备类型                             {}:{}", byDVRType, "ATM DVR");
+            break;
+        case DVS:
+            spdlog::info("设备类型                             {}:{}", byDVRType, "DVS");
+            break;
+        case DS90XX_HF_S:
+            spdlog::info("设备类型                             {}:{}", byDVRType, "DS90XX_HF_S");
+            break;
+        default:
+            spdlog::info("设备类型                             {}:{}", byDVRType, "unknown");
+            break;
     }
 }
 
 DWORD HCNet::RealPlay() {
     // 实时预览（支持多码流）。
-    NET_DVR_PREVIEWINFO struPreviewInfo = { 0 };
+    NET_DVR_PREVIEWINFO struPreviewInfo = {0};
     this->lRealHandle_ = NET_DVR_RealPlay_V40(this->lUserID_, &struPreviewInfo, nullptr, nullptr);
     if (this->lRealHandle_ == -1) {
         // 返回最后操作的错误码。
@@ -387,6 +457,5 @@ DWORD HCNet::RealPlay() {
         spdlog::error("NET_DVR_RealPlay_V40: {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
         return lError;
     }
-
-    return NET_DVR_NOERROR;
+    return kOK;
 }

@@ -5,5 +5,6 @@
 
 #include <iostream>
 #include <spdlog/spdlog.h>
+#include <tinyxml2.h>
 
 // TODO: 在此处引用程序需要的其他标头。
