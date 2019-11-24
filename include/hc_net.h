@@ -23,9 +23,9 @@ public:
 
     ~HCNet();
 
-    DWORD Login();
+    DWORD Login(std::string sDeviceAddress, WORD wPort, std::string sUserName, std::string sPassword);
 
-    DWORD RealPlay();
+    DWORD RealPlay(LONG lChannel);
 
 private:
     DWORD Init();

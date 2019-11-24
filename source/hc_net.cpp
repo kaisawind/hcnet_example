@@ -15,12 +15,16 @@ void CALLBACK fRealDataCallBack_V30(LONG lPlayHandle, DWORD dwDataType, BYTE *pB
 
     switch (dwDataType) {
         case NET_DVR_SYSHEAD:
+            spdlog::debug("系统头数据");
             break;
         case NET_DVR_STREAMDATA:
+            spdlog::debug("流数据（包括复合流或音视频分开的视频流数据）");
             break;
         case NET_DVR_AUDIOSTREAMDATA:
+            spdlog::debug("音频数据");
             break;
         case NET_DVR_PRIVATE_DATA:
+            spdlog::debug("私有数据,包括智能信息");
             break;
         default:
             break;
@@ -84,6 +88,7 @@ HCNet::~HCNet() {
             spdlog::error("NET_DVR_StopRealPlay: {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
             // return;
         }
+        spdlog::info("NET_DVR_StopRealPlay OK {}", this->lRealHandle_);
     }
 
     if (this->lUserID_ != -1) {
@@ -97,6 +102,7 @@ HCNet::~HCNet() {
             spdlog::error("NET_DVR_Logout: {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
             // return;
         }
+        spdlog::info("NET_DVR_Logout OK {}", this->lUserID_);
     }
     // 释放SDK资源，在程序结束之前调用。
     BOOL ret = NET_DVR_Cleanup();
@@ -106,13 +112,20 @@ HCNet::~HCNet() {
         LONG lErrorNo = LONG(lError);
         // 返回最后操作的错误码信息。
         spdlog::error("NET_DVR_Cleanup: {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
-        return;
+        // return;
     }
+    spdlog::info("NET_DVR_Cleanup OK");
+
     delete this->lpDeviceCfg_;
+    spdlog::info("free lpDeviceCfg_ OK");
     delete this->lpDeviceInfo_;
+    spdlog::info("free lpDeviceInfo_ OK");
+    delete this->lpIPParaCfg_;
+    spdlog::info("free lpIPParaCfg_ OK");
     for (auto &v : this->mapChannelInfo_) {
         if (v.second != nullptr) {
             delete v.second;
+            spdlog::info("free channel {} OK", v.first);
         }
     }
     spdlog::info("HC Net DVR Destroy");
@@ -187,24 +200,17 @@ DWORD HCNet::Init() {
     return kOK;
 }
 
-DWORD HCNet::Login() {
-    NET_DVR_USER_LOGIN_INFO loginInfo = {
-            "123.185.223.20",            // sDeviceAddress 设备地址，IP 或者普通域名
-            1,                           // byUseTransport 是否启用能力集透传：0- 不启用透传，默认；1- 启用透传
-            8000,                        // wPort		  设备端口号，例如：8000
-            "admin",                     // sUserName	  登录用户名，例如：admin
-            "1qaz2wsx",                  // sPassword	  登录密码，例如：12345
-            nullptr,                     // cbLoginResult  登录状态回调函数，bUseAsynLogin 为1时有效
-            nullptr,                     // pUser		  用户数据
-            FALSE,                         // bUseAsynLogin  是否异步登录：0- 否，1- 是
-            0,                             // byProxyType    代理服务器类型：0- 不使用代理，1- 使用标准代理，2- 使用EHome代理
-            0,                             // byUseUTCTime   是否使用UTC时间：0- 不进行转换，默认；1- 输入输出UTC时间，SDK进行与设备时区的转换；2- 输入输出平台本地时间，SDK进行与设备时区的转换
-            0,                             // byLoginMode    登录模式(不同模式具体含义详见“Remarks”说明)：0- SDK私有协议，1- ISAPI协议，2- 自适应（设备支持协议类型未知时使用，一般不建议）
-            0,                             // byHttps        ISAPI协议登录时是否启用HTTPS(byLoginMode为1时有效)：0- 不启用，1- 启用，2- 自适应（设备支持协议类型未知时使用，一般不建议）
-            0,                             // iProxyID       代理服务器序号，添加代理服务器信息时相对应的服务器数组下表值
-            0,                             // byVerifyMode
-    };
-    LONG lUserID = NET_DVR_Login_V40(&loginInfo, this->lpDeviceInfo_);
+DWORD HCNet::Login(std::string sDeviceAddress, WORD wPort, std::string sUserName, std::string sPassword) {
+    NET_DVR_USER_LOGIN_INFO struLoginInfo = {0 };
+    strcpy(struLoginInfo.sDeviceAddress, sDeviceAddress.c_str());   // sDeviceAddress 设备地址，IP 或者普通域名
+    struLoginInfo.byUseTransport = 1;                               // byUseTransport 是否启用能力集透传：0- 不启用透传，默认；1- 启用透传
+    struLoginInfo.wPort = wPort;                                    // wPort		  设备端口号，例如：8000
+    strcpy(struLoginInfo.sUserName, sUserName.c_str());             // sUserName	  登录用户名，例如：admin
+    strcpy(struLoginInfo.sPassword, sPassword.c_str());             // sPassword	  登录密码，例如：12345
+    struLoginInfo.cbLoginResult = nullptr;                          // cbLoginResult  登录状态回调函数，bUseAsynLogin 为1时有效
+    struLoginInfo.pUser = nullptr;                                  // pUser		  用户数据
+    struLoginInfo.bUseAsynLogin = FALSE;                            // bUseAsynLogin  是否异步登录：0- 否，1- 是
+    LONG lUserID = NET_DVR_Login_V40(&struLoginInfo, this->lpDeviceInfo_);
     if (lUserID == -1) {
         // 返回最后操作的错误码。
         DWORD lError = NET_DVR_GetLastError();
@@ -504,9 +510,14 @@ void HCNet::DVRType(BYTE byDVRType) {
     }
 }
 
-DWORD HCNet::RealPlay() {
+DWORD HCNet::RealPlay(LONG lChannel) {
     // 实时预览（支持多码流）。
-    NET_DVR_PREVIEWINFO struPreviewInfo = {0};
+    NET_DVR_PREVIEWINFO struPreviewInfo = {
+            lChannel: lChannel,
+            dwStreamType: 1,
+            dwLinkMode: 0,
+            bBlocked: 1,
+    };
     this->lRealHandle_ = NET_DVR_RealPlay_V40(this->lUserID_, &struPreviewInfo, nullptr, nullptr);
     if (this->lRealHandle_ == -1) {
         // 返回最后操作的错误码。
@@ -516,5 +527,18 @@ DWORD HCNet::RealPlay() {
         spdlog::error("NET_DVR_RealPlay_V40: {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
         return lError;
     }
+    spdlog::info("NET_DVR_RealPlay_V40 OK");
+
+    // 注册回调函数，捕获实时码流数据。
+    BOOL ret = NET_DVR_SetRealDataCallBackEx(this->lRealHandle_, fRealDataCallBack_V30, this);
+    if (!ret) {
+        // 返回最后操作的错误码。
+        DWORD lError = NET_DVR_GetLastError();
+        LONG lErrorNo = LONG(lError);
+        // 返回最后操作的错误码信息。
+        spdlog::error("NET_DVR_SetRealDataCallBackEx: {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
+        return lError;
+    }
+    spdlog::info("NET_DVR_SetRealDataCallBackEx OK");
     return kOK;
 }
