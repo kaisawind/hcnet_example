@@ -110,6 +110,11 @@ HCNet::~HCNet() {
     }
     delete this->lpDeviceCfg_;
     delete this->lpDeviceInfo_;
+    for (auto &v : this->mapChannelInfo_) {
+        if (v.second != nullptr) {
+            delete v.second;
+        }
+    }
     spdlog::info("HC Net DVR Destroy");
 }
 
@@ -179,7 +184,7 @@ DWORD HCNet::Init() {
     spdlog::info("最大升级路数         SERVER_NUM      {}", adkAbl.dwMaxUpgradeNum);
     spdlog::info("最大语音转发路数     SERVER_NUM      {}", adkAbl.dwMaxVoiceComNum);
     spdlog::info("最大语音广播路数     MAX_CASTNUM     {}", adkAbl.dwMaxBroadCastNum);
-    return NET_DVR_NOERROR;
+    return kOK;
 }
 
 DWORD HCNet::Login() {
@@ -233,12 +238,23 @@ DWORD HCNet::Login() {
         spdlog::error("Get IP Para error {}", error);
         return error;
     }
+    return kOK;
+}
 
-    error = this->GetPtzAbility();
-    if (error) {
-        spdlog::error("Get Ptz Ability error {}", error);
-        return error;
+DWORD HCNet::GetPictureConfig(DWORD dwChannelIndex, LPNET_DVR_PICCFG_V40 lpPicCfg) {
+    // 获取图像参数
+    DWORD dwReturned = 0;
+    BOOL ret = NET_DVR_GetDVRConfig(this->lUserID_, NET_DVR_GET_PICCFG_V40, dwChannelIndex, lpPicCfg,
+                                    sizeof(NET_DVR_PICCFG_V40), &dwReturned);
+    if (!ret) {
+        // 返回最后操作的错误码。
+        DWORD lError = NET_DVR_GetLastError();
+        LONG lErrorNo = LONG(lError);
+        // 返回最后操作的错误码信息。
+        spdlog::error("NET_DVR_GetDVRConfig: NET_DVR_GET_PICCFG {} {}", lError, NET_DVR_GetErrorMsg(&lErrorNo));
+        return lError;
     }
+    spdlog::info("NET_DVR_GetDVRConfig NET_DVR_GET_PICCFG {} {}", dwChannelIndex, lpPicCfg->sChanName);
     return kOK;
 }
 
@@ -262,27 +278,24 @@ DWORD HCNet::ParsePtzAbility(char *pOutBuf) {
     return kOK;
 }
 
-DWORD HCNet::GetPtzAbility() {
-    for (DWORD index = 0; index < this->lpIPParaCfg_->dwDChanNum; index++) {
-        DWORD dwChannelIndex = index + this->lpIPParaCfg_->dwStartDChan;
-        char pInBuf[512] = "";
-        char pOutBuf[1024 * 1024] = "";
-        sprintf(pInBuf, kPtzAbility, dwChannelIndex);
-        BOOL ret = NET_DVR_GetDeviceAbility(this->lUserID_, DEVICE_ABILITY_INFO, pInBuf, sizeof(pInBuf), pOutBuf,
-                                            sizeof(pOutBuf));
-        if (!ret) {
-            // 返回最后操作的错误码。
-            DWORD lError = NET_DVR_GetLastError();
-            LONG lErrorNo = LONG(lError);
-            // 返回最后操作的错误码信息。
-            spdlog::error("NET_DVR_GetDeviceAbility DEVICE_ABILITY_INFO: {} {}", lError,
-                          NET_DVR_GetErrorMsg(&lErrorNo));
-            continue;
-        }
-        DWORD error = this->ParsePtzAbility(pOutBuf);
-        if (!error) {
-            continue;
-        }
+DWORD HCNet::GetPtzAbility(DWORD dwChannelIndex) {
+    char pInBuf[512] = "";
+    char pOutBuf[1024 * 1024] = "";
+    sprintf(pInBuf, kPtzAbility, dwChannelIndex);
+    BOOL ret = NET_DVR_GetDeviceAbility(this->lUserID_, DEVICE_ABILITY_INFO, pInBuf, sizeof(pInBuf), pOutBuf,
+                                        sizeof(pOutBuf));
+    if (!ret) {
+        // 返回最后操作的错误码。
+        DWORD lError = NET_DVR_GetLastError();
+        LONG lErrorNo = LONG(lError);
+        // 返回最后操作的错误码信息。
+        spdlog::error("{} NET_DVR_GetDeviceAbility PTZ_ABILITY: {} {}", dwChannelIndex, lError,
+                      NET_DVR_GetErrorMsg(&lErrorNo));
+        return lError;
+    }
+    DWORD error = this->ParsePtzAbility(pOutBuf);
+    if (!error) {
+        return error;
     }
     return kOK;
 }
@@ -337,11 +350,12 @@ DWORD HCNet::GetIPParaConfig() {
     spdlog::info("数字通道个数    {}", lpIPParaCfg->dwDChanNum);
     spdlog::info("起始数字通道    {}", lpIPParaCfg->dwStartDChan);
     // IP设备
-    for (auto i : lpIPParaCfg->struIPDevInfo) {
-        LPNET_DVR_IPDEVINFO_V31 lpIPDevInfo = &i;
+    for (DWORD index = 0; index < lpIPParaCfg->dwDChanNum; index++) {
+        LPNET_DVR_IPDEVINFO_V31 lpIPDevInfo = &lpIPParaCfg->struIPDevInfo[index];
         if (!lpIPDevInfo->byEnable) {
             continue;
         }
+        DWORD dwChannelIndex = lpIPParaCfg->dwStartDChan + index;
         spdlog::info("---------------------------------");
         switch (lpIPDevInfo->byProType) {
             case 0:
@@ -357,13 +371,58 @@ DWORD HCNet::GetIPParaConfig() {
                 spdlog::info("协议类型 {}", lpIPDevInfo->byProType);
                 break;
         }
-        spdlog::info("用户名 {}", lpIPDevInfo->sUserName);
-        spdlog::info("密码 {}", lpIPDevInfo->sPassword);
-        spdlog::info("设备域名 {}", lpIPDevInfo->byDomain);
+        spdlog::info("用户名   {}", lpIPDevInfo->sUserName);
+        spdlog::info("密码     {}", lpIPDevInfo->sPassword);
+        spdlog::info("设备域名  {}", lpIPDevInfo->byDomain);
         spdlog::info("IPV4地址 {}", lpIPDevInfo->struIP.sIpV4);
         spdlog::info("IPV6地址 {}", lpIPDevInfo->struIP.byIPv6);
-        spdlog::info("端口号 {}", lpIPDevInfo->wDVRPort);
-        spdlog::info("设备ID {}", lpIPDevInfo->szDeviceID);
+        spdlog::info("端口号   {}", lpIPDevInfo->wDVRPort);
+        spdlog::info("设备ID   {}", lpIPDevInfo->szDeviceID);
+        LPNET_DVR_STREAM_MODE lpStreamMode = &lpIPParaCfg->struStreamMode[index];
+        switch (lpStreamMode->byGetStreamType) {
+            case 0: {
+                spdlog::info("{} 直接从设备取流，对应联合体中结构NET_DVR_IPCHANINFO", dwChannelIndex);
+                DWORD error = this->GetPtzAbility(dwChannelIndex);
+                if (error) {
+                    spdlog::warn("Get Ptz Ability error {}", error);
+                }
+                NET_DVR_PICCFG_V40 struPicCfg = {0};
+                error = this->GetPictureConfig(dwChannelIndex, &struPicCfg);
+                if (error) {
+                    spdlog::warn("Get Picture Config error {}", error);
+                }
+                LPChannelInfo lpChannelInfo = new ChannelInfo;
+                if (lpStreamMode->uGetStream.struChanInfo.byEnable) {
+                    lpChannelInfo->byEnable = 1;
+                }
+                lpChannelInfo->sIpV4 = (char *) lpIPDevInfo->struIP.sIpV4;
+                lpChannelInfo->dwIndex = dwChannelIndex;
+                lpChannelInfo->sName = (char *) struPicCfg.sChanName;
+                this->mapChannelInfo_[dwChannelIndex] = lpChannelInfo;
+            }
+                break;
+            case 1:
+                spdlog::info("{} 从流媒体取流，对应联合体中结构NET_DVR_IPSERVER_STREAM", dwChannelIndex);
+                break;
+            case 2:
+                spdlog::info("{} 通过IPServer获得IP地址后取流，对应联合体中结构NET_DVR_PU_STREAM_CFG", dwChannelIndex);
+                break;
+            case 3:
+                spdlog::info("{} 通过IPServer找到设备，再通过流媒体取设备的流，对应联合体中结构NET_DVR_DDNS_STREAM_CFG", dwChannelIndex);
+                break;
+            case 4:
+                spdlog::info("{} 通过流媒体由URL去取流，对应联合体中结构NET_DVR_PU_STREAM_URL", dwChannelIndex);
+                break;
+            case 5:
+                spdlog::info("{} 通过hiDDNS域名连接设备然后从设备取流，对应联合体中结构NET_DVR_HKDDNS_STREAM", dwChannelIndex);
+                break;
+            case 6:
+                spdlog::info("{} 直接从设备取流(扩展)，对应联合体中结构NET_DVR_IPCHANINFO_V40", dwChannelIndex);
+                break;
+            default:
+                spdlog::info("{} Stream Type {}", dwChannelIndex, lpStreamMode->byGetStreamType);
+                break;
+        }
     }
     spdlog::info("---------------------------------");
     spdlog::info("NET_DVR_GetDVRConfig NET_DVR_GET_IPPARACFG_V40 OK {}", dwReturned);
@@ -417,7 +476,7 @@ void HCNet::GetDeviceInfo() {
     // 能力，位与结果为0表示不支持，1表示支持，
     spdlog::info("是否支持智能搜索                     {:x}", struDeviceV30.bySupport & 0x1);
     spdlog::info("是否支持备份                         {:x}", (struDeviceV30.bySupport & 0x2) >> 1);
-    spdlog::info("是否支持压缩参数能力获取             {:x}", (struDeviceV30.bySupport & 0x3) >> 2);
+    spdlog::info("是否支持压缩参数能力获取              {:x}", (struDeviceV30.bySupport & 0x3) >> 2);
     spdlog::info("是否支持多网卡                       {:x}", (struDeviceV30.bySupport & 0x4) >> 3);
     spdlog::info("是否支持远程SADP                     {:x}", (struDeviceV30.bySupport & 0x10) >> 4);
     spdlog::info("是否支持Raid卡功能                   {:x}", (struDeviceV30.bySupport & 0x20) >> 5);

@@ -1,7 +1,16 @@
 
 #pragma once
+
 #include "common.h"
 #include <HCNetSDK.h>
+#include <map>
+
+typedef struct ChannelInfo_tag {
+    std::string sName;
+    std::string sIpV4;
+    BYTE byEnable;
+    DWORD dwIndex;
+} ChannelInfo, *LPChannelInfo;
 
 class HCNet {
 public:
@@ -10,24 +19,36 @@ public:
         kXmlError = 1,
     };
 public:
-	HCNet();
-	~HCNet();
+    HCNet();
+
+    ~HCNet();
+
     DWORD Login();
+
     DWORD RealPlay();
 
 private:
-	DWORD Init();
-	void GetDeviceInfo();
+    DWORD Init();
+
+    void GetDeviceInfo();
+
     DWORD GetDeviceConfig();
+
     DWORD GetIPParaConfig();
-    DWORD GetPtzAbility();
-    DWORD ParsePtzAbility(char* pOutBuf);
+
+    DWORD GetPtzAbility(DWORD dwChannelIndex);
+
+    DWORD ParsePtzAbility(char *pOutBuf);
+
+    DWORD GetPictureConfig(DWORD dwChannelIndex, LPNET_DVR_PICCFG_V40 lpPicCfg);
+
     void DVRType(BYTE byDVRType);
 
 private:
-    LONG lUserID_{ -1 };
-    LONG lRealHandle_{ -1 };
-	LPNET_DVR_DEVICEINFO_V40 lpDeviceInfo_{ nullptr };
-    LPNET_DVR_DEVICECFG_V40 lpDeviceCfg_{ nullptr };
-    LPNET_DVR_IPPARACFG_V40 lpIPParaCfg_{ nullptr };
+    LONG lUserID_{-1};
+    LONG lRealHandle_{-1};
+    LPNET_DVR_DEVICEINFO_V40 lpDeviceInfo_{nullptr};
+    LPNET_DVR_DEVICECFG_V40 lpDeviceCfg_{nullptr};
+    LPNET_DVR_IPPARACFG_V40 lpIPParaCfg_{nullptr};
+    std::map<DWORD, LPChannelInfo> mapChannelInfo_;
 };
