@@ -1,9 +1,9 @@
-# CMakeList.txt: hcnet2webrtc 的 CMake 项目，在此处包括源代码并定义
+# CMakeList.txt: hcnet_example 的 CMake 项目，在此处包括源代码并定义
 # 项目特定的逻辑。
 #
 cmake_minimum_required(VERSION 3.8)
 
-project(hcnet2webrtc VERSION 0.0.1 LANGUAGES CXX)
+project(hcnet_example VERSION 0.0.1 LANGUAGES CXX)
 
 message("CMAKE_PROJECT_NAME = ${CMAKE_PROJECT_NAME}")
 message("PROJECT_NAME = ${PROJECT_NAME}")
