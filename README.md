@@ -1,4 +1,8 @@
-# hcnet2webrtc
+# hcnet_example
+
+## 1. description
+
+HCNet SDK example, this project show how to use hcnet sdk.
 
 ## 2. 3rdParty
 
