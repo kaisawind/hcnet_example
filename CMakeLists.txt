@@ -38,7 +38,7 @@ set(SOURCE_FILES
 include_directories(${INC_DIR})
 
 # 添加链接库路径
-LINK_DIRECTORIES(${LINK_DIR})
+link_directories(${LINK_DIR})
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     add_library(hcnetsdk SHARED IMPORTED)
